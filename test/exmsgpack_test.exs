@@ -87,8 +87,8 @@ defmodule MsgPackTest do
   end
 
   test "MsgPack macros" do
-    assert MsgPack.fix_array([len: 3, rest: _]) = MsgPack.pack([1,2,3]) /> MsgPack.packed_to_binary
-    assert MsgPack.fix_map([len: 3, rest: _]) = MsgPack.pack(MsgPack.Map.from_list([{1,1},{2,2},{3,3}])) /> MsgPack.packed_to_binary
+    assert MsgPack.fix_array([len: 3]) = MsgPack.pack([1,2,3]) /> MsgPack.packed_to_binary
+    assert MsgPack.fix_map([len: 3]) = MsgPack.pack(MsgPack.Map.from_list([{1,1},{2,2},{3,3}])) /> MsgPack.packed_to_binary
   end
 
 end

@@ -14,7 +14,7 @@ defmodule MsgPack.Match do
   end
 
   defp __match__(type, prefix, opts) do
-    pattern = [(quote hygiene: false, do: rest :: binary)|Enum.reverse(prefix)] />
+    pattern = [(quote hygiene: false, do: _rest :: binary)|Enum.reverse(prefix)] />
                Enum.reverse
     body = opts[:do]
     has_next = not nil?(opts[:next])
@@ -22,22 +22,24 @@ defmodule MsgPack.Match do
     quote hygiene: false do
       unless unquote(has_next) do
         defp decode(:next, << unquote_splicing(pattern) >> = pattern) do
-          prefix_size = byte_size(pattern) - byte_size(rest)
+          prefix_size = byte_size(pattern) - byte_size(_rest)
           {value, _} = :erlang.split_binary(pattern, prefix_size)
-          {value, rest}
+          {value, _rest}
         end
       else
         defp decode(:next, << unquote_splicing(pattern) >> = pattern) do
+          rest = _rest
           unquote(opts[:next])
         end
       end
       unless unquote(has_unpack) do
         defp decode(:unpack, << unquote_splicing(pattern) >>) do
           value = unquote(body)
-          {value, rest}
+          {value, _rest}
         end
       else
         defp decode(:unpack, << unquote_splicing(pattern) >>) do
+          rest = _rest
           unquote(opts[:unpack])
         end
       end
