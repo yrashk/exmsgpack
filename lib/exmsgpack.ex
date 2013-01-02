@@ -52,7 +52,7 @@ defmodule MsgPack.Match do
                 if opts[atom] == nil do
                   v
                 else
-                  {:::, l, [opts[atom] || {atom, l1, quoted}, value]}
+                  {:::, l, [opts[atom], value]}
                 end
               _ ->
                 v
