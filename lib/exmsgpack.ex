@@ -46,16 +46,16 @@ defmodule MsgPack.Match do
       unless unquote(opts[:macro]) == false do
         defmacro unquote(type)(opts // []) do
           pattern =
-          lc {:::, l, [name, value]}=v inlist unquote(Macro.escape(pattern)) do
+          lc {:::, l, [name, value]} inlist unquote(Macro.escape(pattern)) do
             case name do
               {atom, l1, quoted} when is_atom(atom) ->
                 if opts[atom] == nil do
-                  v
+                  {:::, l, [(quote do: _), value]}
                 else
                   {:::, l, [opts[atom], value]}
                 end
               _ ->
-                v
+                {:::, l, [(quote do: _), value]}
             end
           end
           MsgPack.Match.__macro__(pattern)
