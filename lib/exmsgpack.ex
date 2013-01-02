@@ -1,24 +1,63 @@
 defmodule MsgPack.Match do
 
-  defmacro match({type, _, prefix}, [do: body]) do
-    __match__(type, prefix, [do: body])
+  def __macro__(binary) do
+    quote hygiene: false do
+      << unquote_splicing(binary) >>
+    end
+  end
+
+  defmacro match({type, _, prefix}, opts) do
+    __match__(type, prefix, opts)
   end
   defmacro match({type, _, prefix}, opts, [do: body]) do
     __match__(type, prefix, Keyword.merge(opts, do: body))
   end
-  defp __match__(_type, prefix, opts) do
-    pattern = [(quote do: rest :: binary)|Enum.reverse(prefix)] />
+
+  defp __match__(type, prefix, opts) do
+    pattern = [(quote hygiene: false, do: rest :: binary)|Enum.reverse(prefix)] />
                Enum.reverse
     body = opts[:do]
-    quote do
-      defp decode(:next, << unquote_splicing(pattern) >> = pattern) do
-        prefix_size = byte_size(pattern) - byte_size(rest)
-        {value, _} = :erlang.split_binary(pattern, prefix_size)
-        {value, rest}
+    has_next = not nil?(opts[:next])
+    has_unpack = not nil?(opts[:unpack])
+    quote hygiene: false do
+      unless unquote(has_next) do
+        defp decode(:next, << unquote_splicing(pattern) >> = pattern) do
+          prefix_size = byte_size(pattern) - byte_size(rest)
+          {value, _} = :erlang.split_binary(pattern, prefix_size)
+          {value, rest}
+        end
+      else
+        defp decode(:next, << unquote_splicing(pattern) >> = pattern) do
+          unquote(opts[:next])
+        end
       end
-      defp decode(:unpack, << unquote_splicing(pattern) >> = pattern) do
-        value = unquote(body)
-        {value, rest}
+      unless unquote(has_unpack) do
+        defp decode(:unpack, << unquote_splicing(pattern) >>) do
+          value = unquote(body)
+          {value, rest}
+        end
+      else
+        defp decode(:unpack, << unquote_splicing(pattern) >>) do
+          unquote(opts[:unpack])
+        end
+      end
+      unless unquote(opts[:macro]) == false do
+        defmacro unquote(type)(opts // []) do
+          pattern =
+          lc {:::, l, [name, value]}=v inlist unquote(Macro.escape(pattern)) do
+            case name do
+              {atom, l1, quoted} when is_atom(atom) ->
+                if opts[atom] == nil do
+                  v
+                else
+                  {:::, l, [opts[atom] || {atom, l1, quoted}, value]}
+                end
+              _ ->
+                v
+            end
+          end
+          MsgPack.Match.__macro__(pattern)
+        end
       end
     end
   end
@@ -116,59 +155,29 @@ defmodule MsgPack do
     _value
   end
 
-  # array
-  defp decode(:next, << 0xdc, len :: [size(16), unsigned, integer, unit(1)],
-              rest :: binary >> = pattern) do
-    next_array(len, rest, 3, pattern)
-  end
-  defp decode(:unpack, << 0xdc, len :: [size(16), unsigned, integer, unit(1)],
-              rest :: binary >>) do
-    unpack_array(len, rest)
-  end
+  match array16(0xdc, len :: [size(16), unsigned, integer, unit(1)]),
+        next: next_array(len, rest, 3, pattern),
+        unpack: unpack_array(len, rest)
 
-  defp decode(:next, << 0xdd, len :: [size(32), unsigned, integer, unit(1)],
-              rest :: binary >> = pattern) do
-    next_array(len, rest, 5, pattern)
-  end
-  defp decode(:unpack, << 0xdd, len :: [size(32), unsigned, integer, unit(1)],
-              rest :: binary >>) do
-    unpack_array(len, rest)
-  end
+  match array32(0xdc, len :: [size(32), unsigned, integer, unit(1)]),
+        next: next_array(len, rest, 5, pattern),
+        unpack: unpack_array(len, rest)
 
-  defp decode(:next, << 0b1001 :: size(4), len :: size(4), rest :: binary >> = pattern) do
-    next_array(len, rest, 1, pattern)
-  end
+  match fix_array(0b1001 :: size(4), len :: size(4)),
+        next: next_array(len, rest, 1, pattern),
+        unpack: unpack_array(len, rest)
 
-  defp decode(:unpack, << 0b1001 :: size(4), len :: size(4), rest :: binary >>) do
-    unpack_array(len, rest)
-  end
+  match map16(0xde, len :: [size(16), unsigned, integer, unit(1)]),
+        next: next_map(len, rest, 3, pattern),
+        unpack: unpack_map(len, rest)
 
-  # map
-  defp decode(:next, << 0xde, len :: [size(16), unsigned, integer, unit(1)],
-              rest :: binary >> = pattern) do
-    next_map(len, rest, 3, pattern)
-  end
-  defp decode(:unpack, << 0xde, len :: [size(16), unsigned, integer, unit(1)],
-              rest :: binary >>) do
-    unpack_map(len, rest)
-  end
+  match map32(0xdf, len :: [size(32), unsigned, integer, unit(1)]),
+        next: next_map(len, rest, 5, pattern),
+        unpack: unpack_map(len, rest)
 
-  defp decode(:next, << 0xdf, len :: [size(32), unsigned, integer, unit(1)],
-              rest :: binary >> = pattern) do
-    next_map(len, rest, 5, pattern)
-  end
-  defp decode(:unpack, << 0xdf, len :: [size(32), unsigned, integer, unit(1)],
-              rest :: binary >>) do
-    unpack_map(len, rest)
-  end
-
-  defp decode(:next, << 0b1000 :: size(4), len :: size(4), rest :: binary >> = pattern) do
-    next_map(len, rest, 1, pattern)
-  end
-
-  defp decode(:unpack, << 0b1000 :: size(4), len :: size(4), rest :: binary >>) do
-    unpack_map(len, rest)
-  end
+  match fix_map(0b1000 :: size(4), len :: size(4)),
+        next: next_map(len, rest, 1, pattern),
+        unpack: unpack_map(len, rest)
 
   invalid_tags = [0xc1, 0xc4, 0xc5, 0xc6, 0xc7, 0xc8, 0xc9,
                   0xd4, 0xd5, 0xd6, 0xd7, 0xd8, 0xd9]
@@ -176,7 +185,7 @@ defmodule MsgPack do
   lc tag inlist invalid_tags do
     Module.eval_quoted __MODULE__, (quote do
       import MsgPack.Match
-      match invalid_tag(unquote(tag) :: [size(8), unit(1)]) do
+      match invalid_tag(unquote(tag) :: [size(8), unit(1)]), macro: false do
         raise MsgPack.InvalidTag, tag: unquote(tag)
       end
     end)
