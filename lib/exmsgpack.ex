@@ -53,7 +53,7 @@ defmodule MsgPack.Match do
                   {:::, l, [opts[atom], value]}
                 end
               _ ->
-                {:::, l, [(quote do: _), value]}
+                {:::, l, [name, value]}
             end
           end
           MsgPack.Match.__macro__(pattern)
