@@ -43,17 +43,27 @@ defmodule MsgPack.Match do
       end
       unless unquote(opts[:macro]) == false do
         defmacro unquote(type)(opts // []) do
+          escaped_pattern = unquote(Macro.escape(pattern))
+          keep_vars = unquote(opts[:requires] || [])
           pattern =
-          lc {:::, l, [name, value]} inlist unquote(Macro.escape(pattern)) do
-            case name do
-              {atom, l1, quoted} when is_atom(atom) ->
-                if opts[atom] == nil do
-                  {:::, l, [(quote do: _), value]}
-                else
-                  {:::, l, [opts[atom], value]}
+          lc pat inlist escaped_pattern do
+            case pat do
+              {:::, l, [name, value]} ->
+                case name do
+                  {atom, l1, quoted} when is_atom(atom) ->
+                    if (opts[atom] == nil and not List.member?(keep_vars, atom)) do
+                      {:::, l, [(quote do: _), value]}
+                    else
+                      if List.member?(keep_vars, atom) do
+                        {:::, l, [opts[atom], value]}
+                      else
+                        {:::, l, [{:=, l, [name, opts[atom]]}, value]}
+                      end
+                    end
+                  _ ->
+                    {:::, l, [name, value]}
                 end
-              _ ->
-                {:::, l, [name, value]}
+              _ -> pat
             end
           end
           MsgPack.Match.__macro__(pattern)
@@ -141,41 +151,48 @@ defmodule MsgPack do
   match int32(0xd2, _value :: [size(32), big, signed, integer]), do: _value
   match int64(0xd3, _value :: [size(64), big, signed, integer]), do: _value
   match raw16(0xda, len :: [size(16), unsigned, integer, unit(1)],
-                _value :: [size(len), binary]) do
+                _value :: [size(len), binary]), requires: [:len] do
     _value
   end
   match raw32(0xdb, len :: [size(32), unsigned, integer, unit(1)],
-                _value :: [size(len), binary]) do
+                _value :: [size(len), binary]), requires: [:len] do
     _value
   end
 
   match uint7(0 :: size(1), _value :: size(7)), do: _value
   match int5(0b111 :: size(3), _value :: size(5)), do: _value - 0b100000
-  match fixraw(0b101 :: size(3), len :: size(5), _value :: [size(len), binary]) do
+  match fix_raw(0b101 :: size(3), len :: size(5), _value :: [size(len), binary]),
+        requires: [:len] do
     _value
   end
 
   match array16(0xdc, len :: [size(16), unsigned, integer, unit(1)]),
+        requires: [:len],
         next: next_array(len, rest, 3, pattern),
         unpack: unpack_array(len, rest)
 
-  match array32(0xdc, len :: [size(32), unsigned, integer, unit(1)]),
+  match array32(0xdd, len :: [size(32), unsigned, integer, unit(1)]),
+        requires: [:len],
         next: next_array(len, rest, 5, pattern),
         unpack: unpack_array(len, rest)
 
   match fix_array(0b1001 :: size(4), len :: size(4)),
+        requires: [:len],
         next: next_array(len, rest, 1, pattern),
         unpack: unpack_array(len, rest)
 
   match map16(0xde, len :: [size(16), unsigned, integer, unit(1)]),
+        requires: [:len],
         next: next_map(len, rest, 3, pattern),
         unpack: unpack_map(len, rest)
 
   match map32(0xdf, len :: [size(32), unsigned, integer, unit(1)]),
+        requires: [:len],
         next: next_map(len, rest, 5, pattern),
         unpack: unpack_map(len, rest)
 
   match fix_map(0b1000 :: size(4), len :: size(4)),
+        requires: [:len],
         next: next_map(len, rest, 1, pattern),
         unpack: unpack_map(len, rest)
 
