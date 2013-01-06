@@ -1,7 +1,7 @@
 defmodule MsgPack.Match do
 
   def __macro__(binary) do
-    quote hygiene: false do
+    quote do
       << unquote_splicing(binary) >>
     end
   end
