@@ -19,22 +19,22 @@ defmodule MsgPack.Match do
     body = opts[:do]
     has_next = not nil?(opts[:next])
     has_unpack = not nil?(opts[:unpack])
-    quote hygiene: false do
+    quote do
       unless unquote(has_next) do
         defp decode(:next, << unquote_splicing(pattern) >> = pattern) do
-          prefix_size = byte_size(pattern) - byte_size(rest)
+          prefix_size = byte_size(pattern) - byte_size(var!(rest))
           {value, _} = :erlang.split_binary(pattern, prefix_size)
-          {value, rest}
+          {value, var!(rest)}
         end
       else
-        defp decode(:next, << unquote_splicing(pattern) >> = pattern) do
+        defp decode(:next, << unquote_splicing(pattern) >> = var!(pattern)) do
           unquote(opts[:next])
         end
       end
       unless unquote(has_unpack) do
         defp decode(:unpack, << unquote_splicing(pattern) >>) do
           value = unquote(body)
-          {value, rest}
+          {value, var!(rest)}
         end
       else
         defp decode(:unpack, << unquote_splicing(pattern) >>) do
