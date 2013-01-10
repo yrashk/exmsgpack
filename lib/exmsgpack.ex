@@ -1,9 +1,53 @@
 defmodule MsgPack.Match do
 
-  def __macro__(binary) do
+  def __macro__(pattern) do
     quote do
-      << unquote_splicing(binary) >>
+      << unquote_splicing(pattern) >>
     end
+  end
+
+  # The below function is not tail recursive,
+  # but the amount of AST it will be operating on
+  # will be minimal
+  @doc false
+  def replace(name, new_name, [h|t]) do
+    [replace(name, new_name, h)|replace(name, new_name, t)]
+  end
+  def replace(name, value, {f, line, args}) when is_list(args) do
+    {f, line, replace(name, value, args)}
+  end
+  def replace(name, {name1, line1, atom}, {name, _line, nil}) when is_atom(atom) do
+    {name1, line1, nil}
+  end
+  def replace(name, {:^, line2, [{name1, line1, atom}]}, {name, _line, nil}) when is_atom(atom) do
+    {:^, line2, [{name1, line1, nil}]}
+  end
+  def replace(name, value, {name, _line, nil}) do
+    value
+  end
+  def replace(_name, _value, value), do: value
+
+
+  def names([h|t]) do
+    [names(h)|names(t)]
+  end
+  def names({_, _, args}) when is_list(args) do
+    names(args)
+  end
+  def names({name, _line, atom}) when is_atom(atom) do
+    name
+  end
+  def names(_value), do: []
+
+  def muted_pattern(names, pattern) do
+    Enum.reduce names,
+        pattern, fn(key, pat) ->
+          if Enum.count(names, fn(x) -> x == key end) > 1 do
+            replace(key, {binary_to_atom("_#{key}"), 0, :quoted}, pat)
+          else
+            replace(key, {:_, 0, :quoted}, pat)
+          end
+        end
   end
 
   defmacro match({type, _, prefix}, opts) do
@@ -14,14 +58,18 @@ defmodule MsgPack.Match do
   end
 
   defp __match__(type, prefix, opts) do
-    pattern = [(quote hygiene: false, do: rest :: binary)|Enum.reverse(prefix)] />
+    pattern = [(quote hygiene: false, do: rest :: binary)|Enum.reverse(prefix)] |>
                Enum.reverse
+    names = Enum.filter(List.flatten(names(pattern)),
+                        fn(x) -> not List.member?([:big,:signed,:unsigned,:integer,:binary,:float, :rest], x)
+                        end)
+    muted_pattern = muted_pattern(names, pattern)
     body = opts[:do]
     has_next = not nil?(opts[:next])
     has_unpack = not nil?(opts[:unpack])
     quote do
       unless unquote(has_next) do
-        defp decode(:next, << unquote_splicing(pattern) >> = pattern) do
+        defp decode(:next, << unquote_splicing(muted_pattern) >> = pattern) do
           prefix_size = byte_size(pattern) - byte_size(var!(rest))
           {value, _} = :erlang.split_binary(pattern, prefix_size)
           {value, var!(rest)}
@@ -41,31 +89,18 @@ defmodule MsgPack.Match do
           unquote(opts[:unpack])
         end
       end
+
       unless unquote(opts[:macro]) == false do
         defmacro unquote(type)(opts // []) do
           escaped_pattern = unquote(Macro.escape(pattern))
-          keep_vars = unquote(opts[:requires] || [])
+          names = Enum.filter(List.flatten(names(escaped_pattern)),
+                              fn(x) -> not List.member?([:big,:signed,:unsigned,:integer,:binary,:float], x)
+                              end)
           pattern =
-          lc pat inlist escaped_pattern do
-            case pat do
-              {:::, l, [name, value]} ->
-                case name do
-                  {atom, l1, quoted} when is_atom(atom) ->
-                    if (opts[atom] == nil and not List.member?(keep_vars, atom)) do
-                      {:::, l, [(quote do: _), value]}
-                    else
-                      if List.member?(keep_vars, atom) do
-                        {:::, l, [opts[atom], value]}
-                      else
-                        {:::, l, [{:=, l, [name, opts[atom]]}, value]}
-                      end
-                    end
-                  _ ->
-                    {:::, l, [name, value]}
-                end
-              _ -> pat
-            end
+          Enum.reduce opts, escaped_pattern, fn({key, value}, pat) ->
+            replace(key, value, pat)
           end
+          pattern = muted_pattern(Enum.filter(names, fn(x) -> not List.member?(Keyword.keys(opts), x) end), pattern)
           MsgPack.Match.__macro__(pattern)
         end
       end
@@ -140,59 +175,52 @@ defmodule MsgPack do
   match atom_nil(0xc0), do: nil
   match atom_false(0xc2), do: false
   match atom_true(0xc3), do: true
-  match float32(0xca, _value :: [size(32), float, unit(1)]), do: _value
-  match float64(0xcb, _value :: [size(64), float, unit(1)]), do: _value
-  match uint8(0xcc, _value :: [unsigned, integer]), do: _value
-  match uint16(0xcd, _value :: [size(16), big, unsigned, integer]), do: _value
-  match uint32(0xce, _value :: [size(32), big, unsigned, integer]), do: _value
-  match uint64(0xcf, _value :: [size(64), big, unsigned, integer]), do: _value
-  match int8(0xd0, _value :: [signed, integer]), do: _value
-  match int16(0xd1, _value :: [size(16), big, signed, integer]), do: _value
-  match int32(0xd2, _value :: [size(32), big, signed, integer]), do: _value
-  match int64(0xd3, _value :: [size(64), big, signed, integer]), do: _value
+  match float32(0xca, value :: [size(32), float, unit(1)]), do: value
+  match float64(0xcb, value :: [size(64), float, unit(1)]), do: value
+  match uint8(0xcc, value :: [unsigned, integer]), do: value
+  match uint16(0xcd, value :: [size(16), big, unsigned, integer]), do: value
+  match uint32(0xce, value :: [size(32), big, unsigned, integer]), do: value
+  match uint64(0xcf, value :: [size(64), big, unsigned, integer]), do: value
+  match int8(0xd0, value :: [signed, integer]), do: value
+  match int16(0xd1, value :: [size(16), big, signed, integer]), do: value
+  match int32(0xd2, value :: [size(32), big, signed, integer]), do: value
+  match int64(0xd3, value :: [size(64), big, signed, integer]), do: value
   match raw16(0xda, len :: [size(16), unsigned, integer, unit(1)],
-                _value :: [size(len), binary]), requires: [:len] do
-    _value
+                value :: [size(len), binary]) do
+    value
   end
   match raw32(0xdb, len :: [size(32), unsigned, integer, unit(1)],
-                _value :: [size(len), binary]), requires: [:len] do
-    _value
+                value :: [size(len), binary]) do
+    value
   end
 
-  match uint7(0 :: size(1), _value :: size(7)), do: _value
-  match int5(0b111 :: size(3), _value :: size(5)), do: _value - 0b100000
-  match fix_raw(0b101 :: size(3), len :: size(5), _value :: [size(len), binary]),
-        requires: [:len] do
-    _value
+  match uint7(0 :: size(1), value :: size(7)), do: value
+  match int5(0b111 :: size(3), value :: size(5)), do: value - 0b100000
+  match fix_raw(0b101 :: size(3), len :: size(5), value :: [size(len), binary]) do
+    value
   end
 
   match array16(0xdc, len :: [size(16), unsigned, integer, unit(1)]),
-        requires: [:len],
         next: next_array(len, rest, 3, pattern),
         unpack: unpack_array(len, rest)
 
   match array32(0xdd, len :: [size(32), unsigned, integer, unit(1)]),
-        requires: [:len],
         next: next_array(len, rest, 5, pattern),
         unpack: unpack_array(len, rest)
 
   match fix_array(0b1001 :: size(4), len :: size(4)),
-        requires: [:len],
         next: next_array(len, rest, 1, pattern),
         unpack: unpack_array(len, rest)
 
   match map16(0xde, len :: [size(16), unsigned, integer, unit(1)]),
-        requires: [:len],
         next: next_map(len, rest, 3, pattern),
         unpack: unpack_map(len, rest)
 
   match map32(0xdf, len :: [size(32), unsigned, integer, unit(1)]),
-        requires: [:len],
         next: next_map(len, rest, 5, pattern),
         unpack: unpack_map(len, rest)
 
   match fix_map(0b1000 :: size(4), len :: size(4)),
-        requires: [:len],
         next: next_map(len, rest, 1, pattern),
         unpack: unpack_map(len, rest)
 
