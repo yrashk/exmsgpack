@@ -13,16 +13,16 @@ defmodule MsgPack.Match do
   def replace(name, new_name, [h|t]) do
     [replace(name, new_name, h)|replace(name, new_name, t)]
   end
-  def replace(name, value, {f, line, args}) when is_list(args) do
-    {f, line, replace(name, value, args)}
+  def replace(name, value, {f, meta, args}) when is_list(args) do
+    {f, meta, replace(name, value, args)}
   end
-  def replace(name, {name1, line1, atom}, {name, _line, nil}) when is_atom(atom) do
-    {name1, line1, nil}
+  def replace(name, {name1, meta1, atom}, {name, _meta, nil}) when is_atom(atom) do
+    {name1, meta1, nil}
   end
-  def replace(name, {:^, line2, [{name1, line1, atom}]}, {name, _line, nil}) when is_atom(atom) do
-    {:^, line2, [{name1, line1, nil}]}
+  def replace(name, {:^, meta2, [{name1, meta1, atom}]}, {name, _meta, nil}) when is_atom(atom) do
+    {:^, meta2, [{name1, meta1, nil}]}
   end
-  def replace(name, value, {name, _line, nil}) do
+  def replace(name, value, {name, _meta, nil}) do
     value
   end
   def replace(_name, _value, value), do: value
@@ -34,7 +34,7 @@ defmodule MsgPack.Match do
   def names({_, _, args}) when is_list(args) do
     names(args)
   end
-  def names({name, _line, atom}) when is_atom(atom) do
+  def names({name, _meta, atom}) when is_atom(atom) do
     name
   end
   def names(_value), do: []
@@ -43,9 +43,9 @@ defmodule MsgPack.Match do
     Enum.reduce names,
         pattern, fn(key, pat) ->
           if Enum.count(names, fn(x) -> x == key end) > 1 do
-            replace(key, {binary_to_atom("_#{key}"), 0, :quoted}, pat)
+            replace(key, (quote do: var!(unquote(binary_to_atom("_#{key}")), __MODULE__)), pat)
           else
-            replace(key, {:_, 0, :quoted}, pat)
+            replace(key, (quote do: _), pat)
           end
         end
   end
