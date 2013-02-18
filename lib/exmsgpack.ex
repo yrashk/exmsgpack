@@ -58,7 +58,7 @@ defmodule MsgPack.Match do
   end
 
   defp __match__(type, prefix, opts) do
-    pattern = [(quote hygiene: false, do: rest :: binary)|Enum.reverse(prefix)] |>
+    pattern = [(quote hygiene: [vars: false], do: rest :: binary)|Enum.reverse(prefix)] |>
                Enum.reverse
     names = Enum.filter(List.flatten(names(pattern)),
                         fn(x) -> not List.member?([:big,:signed,:unsigned,:integer,:binary,:float, :rest], x)
