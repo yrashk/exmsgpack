@@ -109,14 +109,14 @@ defmodule MsgPackTest do
     assert match?(MsgPack.atom_true, MsgPack.pack(true))
   end
 
-  test "float32 macro" do
+  test "float macro" do
     # TODO
   end
 
-  test "float64 macro" do
+  test "double macro" do
     qc do
       forall val in float do
-        match?(MsgPack.float64, MsgPack.pack(val))
+        match?(MsgPack.double, MsgPack.pack(val))
       end
     end
   end

@@ -175,8 +175,8 @@ defmodule MsgPack do
   match atom_nil(0xc0), do: nil
   match atom_false(0xc2), do: false
   match atom_true(0xc3), do: true
-  match float32(0xca, value :: [size(32), float, unit(1)]), do: value
-  match float64(0xcb, value :: [size(64), float, unit(1)]), do: value
+  match float(0xca, value :: [size(32), float, unit(1)]), do: value
+  match double(0xcb, value :: [size(64), float, unit(1)]), do: value
   match uint8(0xcc, value :: [unsigned, integer]), do: value
   match uint16(0xcd, value :: [size(16), big, unsigned, integer]), do: value
   match uint32(0xce, value :: [size(32), big, unsigned, integer]), do: value
