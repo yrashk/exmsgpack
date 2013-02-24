@@ -157,7 +157,7 @@ defmodule MsgPack do
 
   @typep map     :: Map.t
   @type  t       :: [t] | map | integer | float | binary
-  @type  packed :: maybe_improper_list(binary | packed, binary | [])
+  @type  packed :: binary
 
   defexception InvalidTag, tag: nil do
     def message(MsgPack.InvalidTag[tag: tag]) do
@@ -298,8 +298,7 @@ defmodule MsgPack do
   end
 
   @doc """
-  Packs MsgPack compatible term into an iolist-compatible structure. In order
-  to convert this to a binary, use MsgPack.packed_to_binary/1
+  Packs MsgPack compatible term into a binary
 
   ## Example
 
@@ -308,15 +307,6 @@ defmodule MsgPack do
   @spec pack(t) :: packed
   def pack(term) do
     MsgPack.Protocol.pack(term)
-  end
-
-  @doc """
-  Converts an iolist-compatible structure produced by MsgPack.pack/1
-  into a binary
-  """
-  @spec packed_to_binary(packed) :: binary
-  def packed_to_binary(packed) do
-    iolist_to_binary(packed)
   end
 
   @doc """
@@ -431,19 +421,19 @@ defimpl MsgPack.Protocol, for: List do
   @spec pack([MsgPack.t]) :: MsgPack.packed
 
   def pack(array) when length(array) < 16 do
-    [<< 0b1001 :: size(4), (length(array)) :: size(4) >>|elements(array)]
+    << 0b1001 :: size(4), (length(array)) :: size(4), (elements(array)) :: binary >>
   end
 
   def pack(array) when length(array) < 0x10000 do
-    [<< 0xdc :: size(8), (length(array)) :: [size(16), unit(1), big, unsigned, integer] >>|elements(array)]
+    << 0xdc :: size(8), (length(array)) :: [size(16), unit(1), big, unsigned, integer], (elements(array)) :: binary >>
   end
 
   def pack(array) do
-    [<< 0xdd :: size(8), (length(array)) :: [size(32), unit(1), big, unsigned, integer] >>|elements(array)]
+    << 0xdd :: size(8), (length(array)) :: [size(32), unit(1), big, unsigned, integer], (elements(array)) :: binary >>
   end
 
   defp elements(array) do
-    lc element inlist array, do: MsgPack.Protocol.pack(element)
+    bc element inlist array, do: << (MsgPack.Protocol.pack(element)) :: binary >>
   end
 
 end
@@ -452,21 +442,21 @@ defimpl MsgPack.Protocol, for: MsgPack.Map do
   @spec pack([MsgPack.t]) :: MsgPack.packed
 
   def pack(MsgPack.Map[map: map]) when length(map) < 16 do
-    [<< 0b1000 :: size(4), (length(map)) :: size(4) >>|elements(map)]
+    << 0b1000 :: size(4), (length(map)) :: size(4), (elements(map)) :: binary >>
   end
 
   def pack(MsgPack.Map[map: map]) when length(map) < 0x10000 do
-    [<< 0xde :: size(8), (length(map)) :: [size(16), unit(1), big, unsigned, integer] >>|elements(map)]
+    << 0xde :: size(8), (length(map)) :: [size(16), unit(1), big, unsigned, integer], (elements(map)) :: binary >>
   end
 
   def pack(MsgPack.Map[map: map]) do
-    [<< 0xdf :: size(8), (length(map)) :: [size(32), unit(1), big, unsigned, integer] >>|elements(map)]
+    << 0xdf :: size(8), (length(map)) :: [size(32), unit(1), big, unsigned, integer], (elements(map)) :: binary >>
   end
 
   defp elements(map) do
-    lc {key, value} inlist map do
-      [MsgPack.Protocol.pack(key),
-       MsgPack.Protocol.pack(value)]
+    bc {key, value} inlist map do
+      << (MsgPack.Protocol.pack(key)) :: binary,
+         (MsgPack.Protocol.pack(value)) :: binary >>
     end
   end
 

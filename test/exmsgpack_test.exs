@@ -77,7 +77,6 @@ defmodule MsgPackTest do
       forall val in msgpack do
         {value, ""} =
         MsgPack.pack(val) |>
-        MsgPack.packed_to_binary |>
         MsgPack.unpack
         value == val
       end
@@ -89,7 +88,6 @@ defmodule MsgPackTest do
       forall val in msgpack do
         {bin, ""} =
         MsgPack.pack(val) |>
-        MsgPack.packed_to_binary |>
         MsgPack.next
         {value, ""} = MsgPack.unpack(bin)
         value == val
@@ -235,27 +233,27 @@ defmodule MsgPackTest do
   end
 
   test "fix_array macro" do
-    assert MsgPack.fix_array(len: 3) = MsgPack.pack([1,2,3]) |> MsgPack.packed_to_binary
+    assert MsgPack.fix_array(len: 3) = MsgPack.pack([1,2,3])
   end
 
   test "array16 macro" do
-    assert MsgPack.array16(len: 16) = MsgPack.pack(List.duplicate(0, 16)) |> MsgPack.packed_to_binary
+    assert MsgPack.array16(len: 16) = MsgPack.pack(List.duplicate(0, 16))
   end
 
   test "array32 macro" do
-    assert MsgPack.array32(len: 0x10000) = MsgPack.pack(List.duplicate(0, 0x10000)) |> MsgPack.packed_to_binary
+    assert MsgPack.array32(len: 0x10000) = MsgPack.pack(List.duplicate(0, 0x10000))
   end
 
   test "fix_map macro" do
-    assert MsgPack.fix_map([len: 3]) = MsgPack.pack(MsgPack.Map.from_list([{1,1},{2,2},{3,3}])) |> MsgPack.packed_to_binary
+    assert MsgPack.fix_map([len: 3]) = MsgPack.pack(MsgPack.Map.from_list([{1,1},{2,2},{3,3}]))
   end
 
   test "map16 macro" do
-    assert MsgPack.map16(len: 16) = MsgPack.pack(MsgPack.Map.from_list(List.duplicate({0,0}, 16))) |> MsgPack.packed_to_binary
+    assert MsgPack.map16(len: 16) = MsgPack.pack(MsgPack.Map.from_list(List.duplicate({0,0}, 16)))
   end
 
   test "map32 macro" do
-    assert MsgPack.map32(len: 0x10000) = MsgPack.pack(MsgPack.Map.from_list(List.duplicate({0,0}, 0x10000))) |> MsgPack.packed_to_binary
+    assert MsgPack.map32(len: 0x10000) = MsgPack.pack(MsgPack.Map.from_list(List.duplicate({0,0}, 0x10000)))
   end
 
 end
