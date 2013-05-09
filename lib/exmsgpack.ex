@@ -61,7 +61,7 @@ defmodule MsgPack.Match do
     pattern = [(quote hygiene: [vars: false], do: rest :: binary)|Enum.reverse(prefix)] |>
                Enum.reverse
     names = Enum.filter(List.flatten(names(pattern)),
-                        fn(x) -> not List.member?([:big,:signed,:unsigned,:integer,:binary,:float, :rest], x)
+                        fn(x) -> not Enum.member?([:big,:signed,:unsigned,:integer,:binary,:float, :rest], x)
                         end)
     muted_pattern = muted_pattern(names, pattern)
     body = opts[:do]
@@ -94,13 +94,13 @@ defmodule MsgPack.Match do
         defmacro unquote(type)(opts // []) do
           escaped_pattern = unquote(Macro.escape(pattern))
           names = Enum.filter(List.flatten(names(escaped_pattern)),
-                              fn(x) -> not List.member?([:big,:signed,:unsigned,:integer,:binary,:float], x)
+                              fn(x) -> not Enum.member?([:big,:signed,:unsigned,:integer,:binary,:float], x)
                               end)
           pattern =
           Enum.reduce opts, escaped_pattern, fn({key, value}, pat) ->
             replace(key, value, pat)
           end
-          pattern = muted_pattern(Enum.filter(names, fn(x) -> not List.member?(Keyword.keys(opts), x) end), pattern)
+          pattern = muted_pattern(Enum.filter(names, fn(x) -> not Enum.member?(Keyword.keys(opts), x) end), pattern)
           MsgPack.Match.__macro__(pattern)
         end
       end
