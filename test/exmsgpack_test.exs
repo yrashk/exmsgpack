@@ -58,8 +58,11 @@ defmodule MsgPackTest do
   defp msgpack_array(size) do
     list(msgpack(size))
   end
+  defp msgpack_map(0) do
+    [{}]
+  end
   defp msgpack_map(size) do
-    let kv = list({msgpack(size), msgpack(size)}), do: MsgPack.Map.from_list(kv)
+    let kv = list({msgpack(size), msgpack(size)}), do: kv
   end
 
   defmacrop qc(do: body) do
@@ -245,15 +248,15 @@ defmodule MsgPackTest do
   end
 
   test "fix_map macro" do
-    assert MsgPack.fix_map([len: 3]) = MsgPack.pack(MsgPack.Map.from_list([{1,1},{2,2},{3,3}]))
+    assert MsgPack.fix_map([len: 3]) = MsgPack.pack([{1,1},{2,2},{3,3}])
   end
 
   test "map16 macro" do
-    assert MsgPack.map16(len: 16) = MsgPack.pack(MsgPack.Map.from_list(List.duplicate({0,0}, 16)))
+    assert MsgPack.map16(len: 16) = MsgPack.pack(List.duplicate({0,0}, 16))
   end
 
   test "map32 macro" do
-    assert MsgPack.map32(len: 0x10000) = MsgPack.pack(MsgPack.Map.from_list(List.duplicate({0,0}, 0x10000)))
+    assert MsgPack.map32(len: 0x10000) = MsgPack.pack(List.duplicate({0,0}, 0x10000))
   end
 
 end

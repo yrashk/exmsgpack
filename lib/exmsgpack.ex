@@ -115,49 +115,9 @@ defmodule MsgPack do
   and decoding functionality (packing and unpacking)
   """
 
-  defrecord Map, map: [] do
-    @moduledoc """
-    MsgPack.Map represents a MessagePack Map
-    """
-    record_type map: [{MsgPack.t, MsgPack.t}]
-
-    @doc """
-    Converts a Dict dictionary into a MsgPack.Map
-
-    ## Example
-
-        MsgPack.Map.from_dict(HashDict.new([{"a","b"}]))
-    """
-    @spec from_dict(Dict.t) :: t
-    def from_dict(dict) do
-      new(map: Dict.to_list(dict))
-    end
-
-    @doc """
-    Converts a proplist into a MsgPack.Map
-
-    ## Example
-
-        MsgPack.Map.from_list([{"a","b"}])
-    """
-    @spec from_list(list) :: t
-    def from_list(list) do
-      new(map: list)
-    end
-
-    @doc """
-    Converts MsgPack.Map into a proplist
-    """
-    @spec to_list(t) :: list
-    def to_list(MsgPack.Map[map: map]) do
-      map
-    end
-
-  end
-
-  @typep map     :: Map.t
+  @typep map     :: [{}] | [{t, t}]
   @type  t       :: [t] | map | integer | float | binary
-  @type  packed :: binary
+  @type  packed  :: binary
 
   defexception InvalidTag, tag: nil do
     def message(MsgPack.InvalidTag[tag: tag]) do
@@ -285,7 +245,7 @@ defmodule MsgPack do
   end
 
   defp unpack_map(0, rest) do
-    {MsgPack.Map.from_list([]), rest}
+    {[{}], rest}
   end
   defp unpack_map(len, rest) do
     {acc, new_rest} =
@@ -294,7 +254,7 @@ defmodule MsgPack do
       {value, bin_rest} = unpack(bin_rest)
       {[{key, value}|acc], bin_rest}
     end)
-    {MsgPack.Map.from_list(Enum.reverse(acc)), new_rest}
+    {Enum.reverse(acc), new_rest}
   end
 
   @doc """
@@ -420,40 +380,42 @@ end
 defimpl MsgPack.Protocol, for: List do
   @spec pack([MsgPack.t]) :: MsgPack.packed
 
+  def pack([{_, _}|_] = map) do
+    pack_map(map)
+  end
+  def pack([{}]) do
+    pack_map([])
+  end
+
   def pack(array) when length(array) < 16 do
-    << 0b1001 :: size(4), (length(array)) :: size(4), (elements(array)) :: binary >>
+    << 0b1001 :: size(4), (length(array)) :: size(4), (array_elements(array)) :: binary >>
   end
 
   def pack(array) when length(array) < 0x10000 do
-    << 0xdc :: size(8), (length(array)) :: [size(16), unit(1), big, unsigned, integer], (elements(array)) :: binary >>
+    << 0xdc :: size(8), (length(array)) :: [size(16), unit(1), big, unsigned, integer], (array_elements(array)) :: binary >>
   end
 
   def pack(array) do
-    << 0xdd :: size(8), (length(array)) :: [size(32), unit(1), big, unsigned, integer], (elements(array)) :: binary >>
+    << 0xdd :: size(8), (length(array)) :: [size(32), unit(1), big, unsigned, integer], (array_elements(array)) :: binary >>
   end
 
-  defp elements(array) do
+  defp pack_map(map) when length(map) < 16 do
+    << 0b1000 :: size(4), (length(map)) :: size(4), (map_elements(map)) :: binary >>
+  end
+
+  defp pack_map(map) when length(map) < 0x10000 do
+    << 0xde :: size(8), (length(map)) :: [size(16), unit(1), big, unsigned, integer], (map_elements(map)) :: binary >>
+  end
+
+  defp pack_map(map) do
+    << 0xdf :: size(8), (length(map)) :: [size(32), unit(1), big, unsigned, integer], (map_elements(map)) :: binary >>
+  end
+
+  defp array_elements(array) do
     bc element inlist array, do: << (MsgPack.Protocol.pack(element)) :: binary >>
   end
 
-end
-
-defimpl MsgPack.Protocol, for: MsgPack.Map do
-  @spec pack([MsgPack.t]) :: MsgPack.packed
-
-  def pack(MsgPack.Map[map: map]) when length(map) < 16 do
-    << 0b1000 :: size(4), (length(map)) :: size(4), (elements(map)) :: binary >>
-  end
-
-  def pack(MsgPack.Map[map: map]) when length(map) < 0x10000 do
-    << 0xde :: size(8), (length(map)) :: [size(16), unit(1), big, unsigned, integer], (elements(map)) :: binary >>
-  end
-
-  def pack(MsgPack.Map[map: map]) do
-    << 0xdf :: size(8), (length(map)) :: [size(32), unit(1), big, unsigned, integer], (elements(map)) :: binary >>
-  end
-
-  defp elements(map) do
+  defp map_elements(map) do
     bc {key, value} inlist map do
       << (MsgPack.Protocol.pack(key)) :: binary,
          (MsgPack.Protocol.pack(value)) :: binary >>
