@@ -376,9 +376,9 @@ defimpl MsgPack.Protocol, for: Atom do
   def pack(true), do: << 0xc3 :: size(8) >>
   def pack(false), do: << 0xc2 :: size(8) >>
   def pack(atom) do
-    case atom_to_binary(atom) do
-      << "Elixir-", bin :: binary >> -> MsgPack.pack(bin)
-      bin -> MsgPack.pack(bin)
+    case Module.split(atom) do
+      [] -> MsgPack.pack(atom_to_binary(atom))
+      items -> MsgPack.pack(Enum.join(items, "."))
     end
   end
 

@@ -265,8 +265,8 @@ defmodule MsgPackTest do
   end
 
   test "capital atom" do
-    {value, ""} = MsgPack.pack([{A, "1"}, {B, "2"}]) |> MsgPack.unpack
-    assert value == [{"A", "1"},{"B", "2"}]
+    {value, ""} = MsgPack.pack([{A, "1"}, {B.C, "2"}]) |> MsgPack.unpack
+    assert value == [{"A", "1"},{"B.C", "2"}]
   end
 
 end
