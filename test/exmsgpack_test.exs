@@ -259,4 +259,14 @@ defmodule MsgPackTest do
     assert MsgPack.map32(len: 0x10000) = MsgPack.pack(List.duplicate({0,0}, 0x10000))
   end
 
+  test "regular atom" do
+    {value, ""} = MsgPack.pack([a: "1", b: "2"]) |> MsgPack.unpack
+    assert value == [{"a", "1"},{"b", "2"}]
+  end
+
+  test "capital atom" do
+    {value, ""} = MsgPack.pack([{A, "1"}, {B, "2"}]) |> MsgPack.unpack
+    assert value == [{"A", "1"},{"B", "2"}]
+  end
+
 end

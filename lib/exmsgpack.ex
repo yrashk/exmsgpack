@@ -370,12 +370,20 @@ defimpl MsgPack.Protocol, for: BitString do
 end
 
 defimpl MsgPack.Protocol, for: Atom do
-  @spec pack(nil | true | false) :: MsgPack.packed
+  @spec pack(atom) :: MsgPack.packed
 
   def pack(nil), do: << 0xc0 :: size(8) >>
   def pack(true), do: << 0xc3 :: size(8) >>
   def pack(false), do: << 0xc2 :: size(8) >>
+  def pack(atom) do
+    case atom_to_binary(atom) do
+      << "Elixir-", bin :: binary >> -> MsgPack.pack(bin)
+      bin -> MsgPack.pack(bin)
+    end
+  end
+
 end
+
 
 defimpl MsgPack.Protocol, for: List do
   @spec pack([MsgPack.t]) :: MsgPack.packed
